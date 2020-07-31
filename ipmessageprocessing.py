@@ -4,7 +4,8 @@
 
 import json
 from datetime import datetime
-from azure.storage.queue import QueueService
+from azure.storage.queue import QueueClient
+from azure.storage.queue import QueueServiceClient
 
 QUEUE_NAME = "ipaddressqueue"
 
@@ -42,25 +43,53 @@ class IPMessageTransmitter:
 
     def __init__(self, queueConnectionString):
         self.connectionString = queueConnectionString
+        self.queueSvc = QueueServiceClient.from_connection_string(conn_str=self.connectionString, queue_name=QUEUE_NAME) 
+
+    def existsQueue(self):
+        foundQ = False
+        queuesList = queueSvc.list_queues()
+        for queue in queuesList:
+            if(queue == QUEUE_NAME):
+                foundQ = True
+                break
+        return foundQ
 
     def processMessage(self, ipAdr, action):
-        queueService = QueueService(connection_string=self.connectionString)
-        if queueService.exists(QUEUE_NAME) == False:
-            return
-        messages = queueService.get_messages(QUEUE_NAME)
+        # If no queue exists, cancel the operation and return False to indicate now messages are available
+        if not self.existsQueue():
+            return 0
+
+        # Get the queue and get some messages (if it exists)
+        messagesProcessed = 0
+        queue = self.queueSvc.get_queue_client(QUEUE_NAME)
+        messages = queue.receive_messages(messages_per_page=5)
+        queue.get_queue_properties()
         try:
-            for m in messages:
-                ipData = IPMessage()
-                ipData.loadJsonMessage(m.content)
-                action(ipData)
-                queueService.delete_message(QUEUE_NAME, m.id, m.pop_receipt)
+            for m in messages.by_page():
+                if m.dequeue_count > 3:
+                    queue.delete_message(m)
+                else:
+                    ipData = IPMessage()
+                    ipData.loadJsonMessage(m.content)
+                    action(ipData)
+                    queue.delete_message(m)
+                    messagesProcessed += 1
         except:
             raise Exception("failed processing message") 
 
-        return messages
+        return messagesProcessed
 
     def sendMessage(self, ipAdr):
-        queueService = QueueService(connection_string=self.connectionString)
-        if queueService.exists(QUEUE_NAME) == False:
-            queueService.create_queue(QUEUE_NAME)
-        queueService.put_message(QUEUE_NAME, ipAdr.getJsonMessage())
+        # Create the queue if it does not exist
+        if not self.existsQueue():
+            try:
+                self.queueSvc.create_queue(QUEUE_NAME)
+            except:
+                raise Exception("Failed creating queue %s" % QUEUE_NAME)
+
+        # Prepare the IP address message
+        ipData = IPMessage()
+        ipData.currentdate = datetime.now
+        ipData.ipaddress = ipAdr
+        queue = self.queueSvc.get_queue_client(QUEUE_NAME)
+        queue.send_message(ipData.getJsonMessage())        
