@@ -7,7 +7,7 @@ from datetime import datetime
 from azure.storage.queue import QueueClient
 from azure.storage.queue import QueueServiceClient
 
-QUEUE_NAME = "ipaddressqueue"
+QUEUE_NAME = u"ipaddressqueue"
 
 class IPMessage:
 
@@ -28,8 +28,8 @@ class IPMessage:
         data["ipAddress"] = self.ipaddress
         data["changeDate"] = self.currentdate.strftime("%Y-%m-%d")
         data["changeTime"] = self.currentdate.strftime("%H:%M:%S")
-        json.loads(data)
-        return(str(json))
+        jsonStr = json.dumps(data)
+        return(jsonStr)
     
     def loadJsonMessage(self, data):
         json.loads(data)
@@ -47,14 +47,14 @@ class IPMessageTransmitter:
 
     def existsQueue(self):
         foundQ = False
-        queuesList = queueSvc.list_queues()
+        queuesList = self.queueSvc.list_queues()
         for queue in queuesList:
-            if(queue == QUEUE_NAME):
+            if(queue.name == QUEUE_NAME):
                 foundQ = True
                 break
         return foundQ
 
-    def processMessage(self, ipAdr, action):
+    def processMessage(self, action):
         # If no queue exists, cancel the operation and return False to indicate now messages are available
         if not self.existsQueue():
             return 0
@@ -89,7 +89,7 @@ class IPMessageTransmitter:
 
         # Prepare the IP address message
         ipData = IPMessage()
-        ipData.currentdate = datetime.now
+        ipData.currentdate = datetime.now()
         ipData.ipaddress = ipAdr
         queue = self.queueSvc.get_queue_client(QUEUE_NAME)
         queue.send_message(ipData.getJsonMessage())        

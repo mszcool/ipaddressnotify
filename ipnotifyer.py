@@ -2,6 +2,7 @@
 # Main program - gets OS' current IP address and sends a message or gets the message from the queue depending on command line parameter
 #
 
+import os
 import sys
 
 import urllib
@@ -42,7 +43,12 @@ def getCurrentIpAddress():
 # Post things to the Azure Queue
 #
 def postIpAddress():
-    print ("Hey")
+    # Reading the connection string from the environment
+    connStr = os.environ['queueConnStr']
+    ipAdr = getCurrentIpAddress()
+    queuePoster = IPMessageTransmitter(connStr)
+    queuePoster.sendMessage(ipAdr)
+    print ("Sent message with current IP %s" % ipAdr)
 
 #
 # Get things from the Azure Queue
