@@ -9,6 +9,11 @@ import urllib
 from ipmessageprocessing import IPMessage
 from ipmessageprocessing import IPMessageTransmitter
 
+#
+# A few global parameters
+#
+MESSAGE_RETRIEVE_COUNT=1
+ENV_CONNSTR_NAME="queueConnStr"
 IPADDRESSRESOLVER_URL_PRI="https://api.ipify.org/?format=text"
 IPADDRESSRESOLVER_URL_SEC="http://ipv4bot.whatismyipaddress.com/"
 
@@ -42,19 +47,28 @@ def getCurrentIpAddress():
 #
 # Post things to the Azure Queue
 #
-def postIpAddress():
+def postIPAddress():
     # Reading the connection string from the environment
-    connStr = os.environ['queueConnStr']
+    connStr = os.environ[ENV_CONNSTR_NAME]
     ipAdr = getCurrentIpAddress()
     queuePoster = IPMessageTransmitter(connStr)
     queuePoster.sendMessage(ipAdr)
-    print ("Sent message with current IP %s" % ipAdr)
+    print ("{ \"ipQueued\": \"%s\" }" % ipAdr)
 
 #
 # Get things from the Azure Queue
 #
-def getIpAddressMessages():
-    print ("Hey")
+def getIPAddressMessages():
+    connStr = os.environ[ENV_CONNSTR_NAME]
+    queueReader = IPMessageTransmitter(connStr)
+    queueReader.processMessage(MESSAGE_RETRIEVE_COUNT, ipAddressAction)
+
+#
+# The application itself just dumps the IP address object onto the console
+#
+def ipAddressAction(ipData: IPMessage):
+    print(ipData.getJsonMessage())
+
 
 #
 # Main program logic
@@ -65,9 +79,9 @@ def main():
     if(argValues.__len__() != 2):
         printHelp()
     if argValues[1] == "read":
-        print("Getting stuff from Azure Queue")
+        getIPAddressMessages()
     elif argValues[1] == "write":
-        postIpAddress()
+        postIPAddress()
     elif argValues[1] == "dump":
         ipAdr = getCurrentIpAddress()
         print(ipAdr)

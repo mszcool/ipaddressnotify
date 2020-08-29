@@ -31,30 +31,30 @@ class IPMessage:
         jsonStr = json.dumps(data)
         return(jsonStr)
     
-    def loadJsonMessage(self, data):
-        json.loads(data)
-        self.ipaddress = data["ipAddress"]
-        dateData = str.split(data["changeDate"], '-')
-        timeData = str.split(data["changeTime"], ':')
+    def loadJsonMessage(self, data: str):
+        jData = json.loads(data)
+        self.ipaddress = jData["ipAddress"]
         # Note - this requires validation, will do so once I've tested the flow
-        self.currentdate = datetime(dateData[0], dateData[1], dateData[2], timeData[0], timeData[1], timeData[2])
+        self.currentdate = datetime.strptime(jData["changeDate"], "%Y-%m-%d")
+        timeData = str.split(jData["changeTime"], ':')
+        self.currentdate = self.currentdate.replace(hour=int(timeData[0]), minute=int(timeData[1]), second=int(timeData[2]))
         
 class IPMessageTransmitter:
 
-    def __init__(self, queueConnectionString):
+    def __init__(self, queueConnectionString: str):
         self.connectionString = queueConnectionString
         self.queueSvc = QueueServiceClient.from_connection_string(conn_str=self.connectionString, queue_name=QUEUE_NAME) 
 
     def existsQueue(self):
         foundQ = False
-        queuesList = self.queueSvc.list_queues()
+        queuesList = self.queueSvc.list_queues(name_starts_with=QUEUE_NAME)
         for queue in queuesList:
             if(queue.name == QUEUE_NAME):
                 foundQ = True
                 break
         return foundQ
 
-    def processMessage(self, action):
+    def processMessage(self, numMessages: int, action: callable):
         # If no queue exists, cancel the operation and return False to indicate now messages are available
         if not self.existsQueue():
             return 0
@@ -62,10 +62,9 @@ class IPMessageTransmitter:
         # Get the queue and get some messages (if it exists)
         messagesProcessed = 0
         queue = self.queueSvc.get_queue_client(QUEUE_NAME)
-        messages = queue.receive_messages(messages_per_page=5)
-        queue.get_queue_properties()
+        messages = queue.receive_messages(messages_per_page=numMessages, visibility_timeout=30)
         try:
-            for m in messages.by_page():
+            for m in messages:
                 if m.dequeue_count > 3:
                     queue.delete_message(m)
                 else:
@@ -75,11 +74,11 @@ class IPMessageTransmitter:
                     queue.delete_message(m)
                     messagesProcessed += 1
         except:
-            raise Exception("failed processing message") 
+           raise Exception("failed processing message") 
 
         return messagesProcessed
 
-    def sendMessage(self, ipAdr):
+    def sendMessage(self, ipAdr: str):
         # Create the queue if it does not exist
         if not self.existsQueue():
             try:
