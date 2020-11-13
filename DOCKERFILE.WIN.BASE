@@ -1,0 +1,30 @@
+#
+# BUILD STAGE
+#
+FROM mcr.microsoft.com/powershell:lts-nanoserver-2004
+
+ENV PYTHON_VERSION 3.9.0
+ENV PYTHON_RELEASE 3.9.0
+ENV PYTHON_PIP_VERSION 20.2.3
+ENV PYTHON_GET_PIP_URL https://bootstrap.pypa.io/get-pip.py
+ENV PYTHONPATH C:\\Work\\Python;C:\\Work\\Python\\Scripts;C:\\Work\\Python\\DLLs;C:\\Work\\Python\\Lib;C:\\Work\\Python\\Lib\\plat-win;C:\\Work\\Python\\Lib\\site-packages
+
+WORKDIR C:\\WORK
+
+COPY . C:\\WORK
+
+USER ContainerAdministrator
+
+SHELL ["cmd.exe", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'Continue'; $verbosePreference='Continue';"]
+
+RUN ["pwsh.exe", ".\\setup\\getpy.ps1"]
+
+RUN ["cmd.exe", "/C", ".\\setup\\setuppy.cmd"]
+
+RUN ["cmd.exe", "/C", ".\\setup\\setuppip.cmd"]
+
+#
+# RUN STAGE
+#
+FROM mcr.microsoft.com/powershell:lts-nanoserver-2004
+
