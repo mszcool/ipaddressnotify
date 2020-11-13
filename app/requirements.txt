@@ -1,0 +1,2 @@
+urllib3==1.25.11
+azure-storage-queue==12.1.4
